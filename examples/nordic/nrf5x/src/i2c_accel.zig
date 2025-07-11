@@ -55,18 +55,17 @@ pub fn main() !void {
     );
 
     try dev.setup();
-    try dev.health_check();
 
     while (true) {
-        const data = try dev.get_accel_gyro_data();
+        const data = try dev.get_accel_gyro_mag_data();
         std.log.info(
-            "accel: x {d: >8.2} y {d: >8.2} z {d: >8.2} " ++
-                "gyro: x {d: >8.2} y {d: >8.2} z {d: >8.2}",
-            .{ data.accel.x, data.accel.y, data.accel.z, data.gyro.x, data.gyro.y, data.gyro.z },
+            "accel: x {d: >6.2} y {d: >6.2} z {d: >6.2} (m/s²) " ++
+                "gyro: x {d: >6.2} y {d: >6.2} z {d: >6.2} (rads) " ++
+                "temp: {d: >5.2}°C " ++
+                "mag: x {d: >6.2} y {d: >6.2} z {d: >6.2} (µT)",
+            .{ data.accel.x, data.accel.y, data.accel.z, data.gyro.x, data.gyro.y, data.gyro.z, data.temp, data.mag.x, data.mag.y, data.mag.z },
         );
-        const temp_c = try dev.get_temp();
-        std.log.info("temp: {d: >5.2}°C", .{temp_c});
 
-        sleep_ms(200);
+        sleep_ms(500);
     }
 }

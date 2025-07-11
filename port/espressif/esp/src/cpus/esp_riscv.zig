@@ -1,7 +1,5 @@
 const std = @import("std");
 const microzig = @import("microzig");
-const root = @import("root");
-const microzig_options = root.microzig_options;
 
 const cpu_config = @import("cpu-config");
 const riscv32_common = @import("riscv32-common");
@@ -273,7 +271,7 @@ pub const startup_logic = switch (cpu_config.boot_mode) {
                 \\.option pop
             );
 
-            root.initialize_system_memories();
+            microzig.utilities.initialize_system_memories();
 
             init_interrupts();
 
@@ -395,17 +393,17 @@ pub const TrapFrame = extern struct {
     mtval: usize,
 };
 
-fn _vector_table() align(256) linksection(".trap") callconv(.naked) void {
+fn _vector_table() align(256) linksection(".ram_text") callconv(.naked) void {
     comptime {
         // TODO: make a better default exception handler
         @export(
-            microzig_options.interrupts.Exception orelse &unhandled,
+            microzig.options.interrupts.Exception orelse &unhandled,
             .{ .name = "_exception_handler" },
         );
 
         for (std.meta.fieldNames(Interrupt)) |field_name| {
             @export(
-                @field(microzig_options.interrupts, field_name) orelse &unhandled,
+                @field(microzig.options.interrupts, field_name) orelse &unhandled,
                 .{ .name = std.fmt.comptimePrint("_{s}_handler", .{field_name}) },
             );
         }
@@ -685,7 +683,7 @@ fn _vector_table() align(256) linksection(".trap") callconv(.naked) void {
     );
 }
 
-fn unhandled(_: *TrapFrame) linksection(".trap") callconv(.c) void {
+fn unhandled(_: *TrapFrame) linksection(".ram_text") callconv(.c) void {
     const mcause = csr.mcause.read();
 
     if (mcause.is_interrupt != 0) {
@@ -698,7 +696,7 @@ fn unhandled(_: *TrapFrame) linksection(".trap") callconv(.c) void {
     @panic("unhandled trap");
 }
 
-fn _update_priority() linksection(".trap") callconv(.c) u32 {
+fn _update_priority() linksection(".ram_text") callconv(.c) u32 {
     const mcause = csr.mcause.read();
 
     const prev_priority = interrupt.get_priority_threshold();
@@ -719,7 +717,7 @@ fn _update_priority() linksection(".trap") callconv(.c) u32 {
     return @intFromEnum(prev_priority);
 }
 
-fn _restore_priority(priority_raw: u32) linksection(".trap") callconv(.c) void {
+fn _restore_priority(priority_raw: u32) linksection(".ram_text") callconv(.c) void {
     interrupt.disable_interrupts();
     interrupt.set_priority_threshold(@enumFromInt(priority_raw));
 }

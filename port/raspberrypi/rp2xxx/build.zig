@@ -17,7 +17,9 @@ boards: struct {
         pico: *const microzig.Target,
         pico_flashless: *const microzig.Target,
         pico2_arm: *const microzig.Target,
+        pico2_arm_flashless: *const microzig.Target,
         pico2_riscv: *const microzig.Target,
+        pico2_riscv_flashless: *const microzig.Target,
     },
     waveshare: struct {
         rp2040_plus_4m: *const microzig.Target,
@@ -50,14 +52,15 @@ pub fn init(dep: *std.Build.Dependency) Self {
             .name = "RP2040",
             .register_definition = .{ .svd = pico_sdk.path("src/rp2040/hardware_regs/RP2040.svd") },
             .memory_regions = &.{
-                .{ .kind = .flash, .offset = 0x10000100, .length = (2048 * 1024) - 256 },
-                .{ .kind = .flash, .offset = 0x10000000, .length = 256 },
-                .{ .kind = .ram, .offset = 0x20000000, .length = 256 * 1024 },
+                .{ .tag = .flash, .offset = 0x10000000, .length = 2048 * 1024, .access = .rx },
+                .{ .tag = .ram, .offset = 0x20000000, .length = 256 * 1024, .access = .rwx },
             },
             .patches = @import("patches/rp2040.zig").patches,
         },
         .hal = hal,
-        .linker_script = b.path("rp2040.ld"),
+        .linker_script = .{
+            .file = b.path("ld/rp2040/sections.ld"),
+        },
     };
 
     const chip_rp2350_arm: microzig.Target = .{
@@ -67,19 +70,24 @@ pub fn init(dep: *std.Build.Dependency) Self {
             .cpu_arch = .thumb,
             .cpu_model = .{ .explicit = &std.Target.arm.cpu.cortex_m33 },
             .os_tag = .freestanding,
-            .abi = .eabihf,
+            .abi = .eabi,
         },
         .chip = .{
             .name = "RP2350",
             .register_definition = .{ .svd = pico_sdk.path("src/rp2350/hardware_regs/RP2350.svd") },
             .memory_regions = &.{
-                .{ .kind = .flash, .offset = 0x10000000, .length = 2048 * 1024 },
-                .{ .kind = .ram, .offset = 0x20000000, .length = 256 * 1024 },
+                .{ .tag = .flash, .offset = 0x10000000, .length = 2048 * 1024, .access = .rx },
+                .{ .tag = .ram, .offset = 0x20000000, .length = 512 * 1024, .access = .rwx },
+                // TODO: maybe these can be used for stacks
+                .{ .tag = .ram, .offset = 0x20080000, .length = 4 * 1024, .access = .rwx },
+                .{ .tag = .ram, .offset = 0x20081000, .length = 4 * 1024, .access = .rwx },
             },
             .patches = @import("patches/rp2350.zig").patches,
         },
         .hal = hal,
-        .linker_script = b.path("rp2350_arm.ld"),
+        .linker_script = .{
+            .file = b.path("ld/rp2350/arm_sections.ld"),
+        },
     };
 
     const chip_rp2350_riscv: microzig.Target = .{
@@ -117,9 +125,11 @@ pub fn init(dep: *std.Build.Dependency) Self {
             .name = "RP2350",
             .register_definition = .{ .svd = pico_sdk.path("src/rp2350/hardware_regs/RP2350.svd") },
             .memory_regions = &.{
-                .{ .kind = .flash, .offset = 0x10000100, .length = (2048 * 1024) - 256 },
-                .{ .kind = .flash, .offset = 0x10000000, .length = 256 },
-                .{ .kind = .ram, .offset = 0x20000000, .length = 256 * 1024 },
+                .{ .tag = .flash, .offset = 0x10000000, .length = 2048 * 1024, .access = .rx },
+                .{ .tag = .ram, .offset = 0x20000000, .length = 512 * 1024, .access = .rwx },
+                // TODO: maybe these can be used for stacks
+                .{ .tag = .ram, .offset = 0x20080000, .length = 4 * 1024, .access = .rwx },
+                .{ .tag = .ram, .offset = 0x20081000, .length = 4 * 1024, .access = .rwx },
             },
             .patches = @import("patches/rp2350.zig").patches ++ [_]microzig.Patch{
                 .{
@@ -131,7 +141,9 @@ pub fn init(dep: *std.Build.Dependency) Self {
             },
         },
         .hal = hal,
-        .linker_script = b.path("rp2350_riscv.ld"),
+        .linker_script = .{
+            .file = b.path("ld/rp2350/riscv_sections.ld"),
+        },
     };
 
     const bootrom_rp2040 = get_bootrom(b, &chip_rp2040, .w25q080);
@@ -165,13 +177,13 @@ pub fn init(dep: *std.Build.Dependency) Self {
                     },
                 }),
                 .pico_flashless = chip_rp2040.derive(.{
-                    .entry = .{ .symbol_name = "_entry_point" },
-                    .linker_script = b.path("rp2040_ram_image.ld"),
                     .ram_image = true,
+                    // we can use the default generated linker script
+                    .linker_script = .{},
                     .board = .{
                         .name = "RaspberryPi Pico (ram image)",
                         .url = "https://www.raspberrypi.com/products/raspberry-pi-pico/",
-                        .root_source_file = b.path("src/boards/raspberry_pi_pico2.zig"),
+                        .root_source_file = b.path("src/boards/raspberry_pi_pico_flashless.zig"),
                     },
                 }),
                 .pico2_arm = chip_rp2350_arm.derive(.{
@@ -181,9 +193,31 @@ pub fn init(dep: *std.Build.Dependency) Self {
                         .root_source_file = b.path("src/boards/raspberry_pi_pico2.zig"),
                     },
                 }),
+                .pico2_arm_flashless = chip_rp2350_arm.derive(.{
+                    .ram_image = true,
+                    .linker_script = .{
+                        .file = b.path("ld/rp2350/arm_ram_image_sections.ld"),
+                    },
+                    .board = .{
+                        .name = "RaspberryPi Pico 2 (ram image)",
+                        .url = "https://www.raspberrypi.com/products/raspberry-pi-pico2/",
+                        .root_source_file = b.path("src/boards/raspberry_pi_pico2.zig"),
+                    },
+                }),
                 .pico2_riscv = chip_rp2350_riscv.derive(.{
                     .board = .{
                         .name = "RaspberryPi Pico 2",
+                        .url = "https://www.raspberrypi.com/products/raspberry-pi-pico2/",
+                        .root_source_file = b.path("src/boards/raspberry_pi_pico2.zig"),
+                    },
+                }),
+                .pico2_riscv_flashless = chip_rp2350_riscv.derive(.{
+                    .ram_image = true,
+                    .linker_script = .{
+                        .file = b.path("ld/rp2350/riscv_ram_image_sections.ld"),
+                    },
+                    .board = .{
+                        .name = "RaspberryPi Pico 2 (ram image)",
                         .url = "https://www.raspberrypi.com/products/raspberry-pi-pico2/",
                         .root_source_file = b.path("src/boards/raspberry_pi_pico2.zig"),
                     },

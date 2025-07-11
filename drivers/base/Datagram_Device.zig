@@ -20,8 +20,9 @@ ptr: *anyopaque,
 vtable: *const VTable,
 
 const BaseError = error{ IoError, Timeout };
-
 pub const ConnectError = BaseError || error{DeviceBusy};
+pub const WriteError = BaseError || error{ Unsupported, NotConnected };
+pub const ReadError = BaseError || error{ Unsupported, NotConnected, BufferOverrun };
 
 /// Establishes a connection to the device (like activating a chip-select lane or similar).
 /// NOTE: Call `.disconnect()` when the usage of the device is done to release it.
@@ -38,20 +39,16 @@ pub fn disconnect(dd: Datagram_Device) void {
     }
 }
 
-pub const WriteError = BaseError || error{ Unsupported, NotConnected };
-
 /// Writes a single `datagram` to the device.
 pub fn write(dd: Datagram_Device, datagram: []const u8) WriteError!void {
     return try dd.writev(&.{datagram});
 }
 
-/// Writes a single `datagram` to the device.
+/// Writes multiple `datagrams` to the device.
 pub fn writev(dd: Datagram_Device, datagrams: []const []const u8) WriteError!void {
     const writev_fn = dd.vtable.writev_fn orelse return error.Unsupported;
     return writev_fn(dd.ptr, datagrams);
 }
-
-pub const ReadError = BaseError || error{ Unsupported, NotConnected, BufferOverrun };
 
 /// Writes then reads a single `datagram` to the device.
 pub fn write_then_read(
@@ -81,7 +78,7 @@ pub fn read(dd: Datagram_Device, datagram: []u8) ReadError!usize {
     return try dd.readv(&.{datagram});
 }
 
-/// Reads a single `datagram` from the device.
+/// Reads multiple `datagrams` from the device.
 /// Function returns the number of bytes written in `datagrams`.
 ///
 /// If `error.BufferOverrun` is returned, the `datagrams` will still be fully filled with the data
@@ -98,8 +95,8 @@ pub const VTable = struct {
     readv_fn: ?*const fn (*anyopaque, datagrams: []const []u8) ReadError!usize,
     writev_then_readv_fn: ?*const fn (
         *anyopaque,
-        datagrams: []const []const u8,
-        datagrams: []const []u8,
+        write_chunks: []const []const u8,
+        read_chunks: []const []u8,
     ) (WriteError || ReadError)!void = null,
 };
 

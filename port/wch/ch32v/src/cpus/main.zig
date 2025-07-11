@@ -1,6 +1,4 @@
 const std = @import("std");
-const root = @import("root");
-const microzig_options = root.microzig_options;
 const microzig = @import("microzig");
 
 const riscv32_common = @import("riscv32-common");
@@ -71,7 +69,7 @@ pub const interrupt = struct {
     pub inline fn enable(irq: Interrupt) void {
         comptime {
             const irq_name = @tagName(irq);
-            if (@field(root.microzig_options.interrupts, irq_name) == null) {
+            if (@field(microzig.options.interrupts, irq_name) == null) {
                 @compileError(
                     irq_name ++ " interrupt handler should be defined.\n" ++
                         "Add to your main file:\n" ++
@@ -226,7 +224,8 @@ pub const startup_logic = struct {
             : [eos] "r" (@as(u32, microzig.config.end_of_stack)),
         );
 
-        @call(.always_inline, &startup_logic.initialize_system_memories, .{});
+        // NOTE: this can only be called once. Otherwise, we get a linker error for duplicate symbols
+        startup_logic.initialize_system_memories();
 
         // Configure the CPU.
         switch (cpu_name) {
@@ -273,7 +272,7 @@ pub const startup_logic = struct {
         asm volatile ("mret");
     }
 
-    fn initialize_system_memories() void {
+    inline fn initialize_system_memories() void {
         // Clear .bss section.
         asm volatile (
             \\    li a0, 0
@@ -332,7 +331,7 @@ pub fn generate_vector_table() [vector_table_size()]InterruptHandler {
     const type_info = @typeInfo(Interrupt);
     const interrupts_list = type_info.@"enum".fields;
 
-    var temp: [vector_table_size()]InterruptHandler = @splat(microzig_options.interrupts.Exception orelse unhandled);
+    var temp: [vector_table_size()]InterruptHandler = @splat(microzig.options.interrupts.Exception orelse unhandled);
     for (&temp, vector_table_offset..) |_, idx| {
         // Find name of the interrupt by its number.
         var name: ?[:0]const u8 = null;
@@ -344,7 +343,7 @@ pub fn generate_vector_table() [vector_table_size()]InterruptHandler {
         }
 
         if (name) |n| {
-            if (@field(microzig_options.interrupts, n)) |h| {
+            if (@field(microzig.options.interrupts, n)) |h| {
                 temp[idx - vector_table_offset] = h;
             }
         }
