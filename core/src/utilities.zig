@@ -661,3 +661,78 @@ test "CircularBuffer bounds" {
 
     try std.testing.expectError(error.Full, maybe_err);
 }
+
+test "CircularBuffer write_assume_capacity" {
+    const expectEqual = std.testing.expectEqual;
+    const bufsize: usize = 64;
+    const FIFO = CircularBuffer(u8, bufsize);
+    var fifo: FIFO = .empty;
+    try expectEqual(bufsize, fifo.get_writable_len());
+    try expectEqual(0, fifo.get_readable_len());
+
+    var tx_buf: [bufsize]u8 = undefined;
+    const tx_data = tx_buf[0..];
+    @memset(tx_data, 42);
+    fifo.write_assume_capacity(tx_data);
+    try expectEqual(0, fifo.get_writable_len());
+    try expectEqual(bufsize, fifo.get_readable_len());
+    try std.testing.expect(fifo.full);
+
+    var rx_buf: [bufsize]u8 = undefined;
+    const rx_data = rx_buf[0..];
+    const bytes_read = fifo.read(rx_data);
+
+    try expectEqual(42, rx_data[0]);
+    try expectEqual(bufsize, bytes_read);
+    try expectEqual(bufsize, fifo.get_writable_len());
+    try expectEqual(0, fifo.get_readable_len());
+    try std.testing.expect(!fifo.full);
+
+    fifo.write_assume_capacity(tx_data);
+    try expectEqual(0, fifo.get_writable_len());
+    try expectEqual(bufsize, fifo.get_readable_len());
+    try std.testing.expect(fifo.full);
+}
+
+test "CircularBuffer wraparound" {
+    const expectEqual = std.testing.expectEqual;
+    const bufsize: usize = 64;
+    const FIFO = CircularBuffer(u8, bufsize);
+    var fifo: FIFO = .empty;
+
+    var tx_buf: [32]u8 = undefined;
+    const tx_data = tx_buf[0..];
+    @memset(tx_data, 42);
+    try fifo.write(tx_data);
+
+    try expectEqual(32, fifo.get_readable_len());
+    try expectEqual(32, fifo.end);
+
+    var rx_buf: [bufsize]u8 = undefined;
+    const rx_data = rx_buf[0..];
+    const bytes_read = fifo.read(rx_data);
+
+    try expectEqual(32, bytes_read);
+    try expectEqual(32, fifo.start);
+    try expectEqual(32, fifo.end);
+    try expectEqual(0, fifo.get_readable_len());
+    try expectEqual(bufsize, fifo.get_writable_len());
+}
+
+test "arrgggggg" {
+    const expectEqual = std.testing.expectEqual;
+    const bufsize: usize = 64;
+    const FIFO = CircularBuffer(u8, bufsize);
+    var fifo: FIFO = .empty;
+
+    var tx_buf: [100]u8 = undefined;
+    const tx_data = tx_buf[0..];
+    @memset(tx_data, 42);
+
+    const write_count = @min(fifo.get_writable_len(), tx_data.len);
+    try expectEqual(bufsize, write_count);
+
+    fifo.write_assume_capacity(tx_data[0..write_count]);
+    try expectEqual(0, fifo.get_writable_len());
+    try expectEqual(bufsize, fifo.get_readable_len());
+}
