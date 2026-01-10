@@ -38,7 +38,7 @@ test "cdc" {
             const self: *@This() = @fieldParentPtr("interface", itf);
             const start = self.host_rx_idx;
             const end = start + buffer.len;
-            @memcpy(self.host_rx_buf[start..end], buffer);
+            std.mem.copyForwards(u8, self.host_rx_buf[start..end], buffer);
             self.host_rx_idx += buffer.len;
         }
         fn start_rx(itf: *usb.DeviceInterface, ep_num: EpNum, len: usize) void {
