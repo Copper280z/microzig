@@ -88,7 +88,7 @@ pub fn main() !void {
                 old = new;
                 led.toggle();
                 i += 1;
-                std.log.info("cdc test: {}\r\n", .{i});
+                // std.log.info("cdc test: {}\r\n", .{i});
 
                 usb_cdc_write(&drivers.serial, "This is very very long text sent from RP Pico by USB CDC to your device: {}\r\n", .{i});
             }
@@ -115,7 +115,7 @@ pub fn usb_cdc_write(serial: *UsbSerial, comptime fmt: []const u8, args: anytype
         usb_dev.poll();
     }
     // Short messages are not sent right away; instead, they accumulate in a buffer, so we have to force a flush to send them
-    _ = serial.write_flush();
+    // _ = serial.write_flush();
     usb_dev.poll();
 }
 

@@ -152,12 +152,16 @@ pub fn Polled(
                     // This ensures that we can return a shared reference to
                     // the databuffer contents without races.
                     // TODO: if ((bc & (1 << 10)) == 1) return EPBError.NotAvailable;
+                    // var bufctrl_ptr = buffer_control[@intFromEnum(ep.num)].get(ep.dir);
+                    // assert(bufctrl_ptr.read().AVAILABLE_0 == 0);
+                    // assert(false);
 
                     // Cool. Checks out.
 
                     // Get the actual length of the data, which may be less
                     // than the buffer size.
                     const len = buffer_control[@intFromEnum(ep.num)].get(ep.dir).read().LENGTH_0;
+                    std.log.info("Calling on_buffer", .{});
 
                     self.controller.on_buffer(&self.interface, ep, ep_hard.data_buffer[0..len]);
 
